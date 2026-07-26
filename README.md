@@ -78,11 +78,30 @@ the data class (structural equality), never by a raw hash. Per-row cost is token
 
 #### Versioned brikk presets — the pinned-config answer
 
-Doris has **no server-side config storage** (no variables, no function aliases, no saved
-literals) — the config argument must be passed on every call, at ingest *and* at query,
-byte-identically. So the jar bakes opinionated chains in as **versioned preset names**:
-the name is the pinned contract, its meaning is frozen by the release tag, and the string
-you repeat everywhere is one token instead of a JSON blob.
+The config argument must be byte-identical at ingest *and* at query. Two complementary
+pinning mechanisms:
+
+1. **Doris `CREATE GLOBAL ALIAS FUNCTION`** — bake the config (and any post-filtering)
+   into a server-side name, so callers never repeat it:
+
+   ```sql
+   CREATE GLOBAL ALIAS FUNCTION tokenize_en(STRING) WITH PARAMETER(txt) AS
+     tokenize_text(txt, 'brikk_multilang_english_v1');
+
+   -- variant that also drops 1-char tokens (keeps numerics of any length):
+   CREATE GLOBAL ALIAS FUNCTION tokenize_en_min2(STRING) WITH PARAMETER(txt) AS
+     array_join(
+       array_filter(x -> char_length(x) > 1 OR x REGEXP '^[0-9]+$',
+                    split_by_string(tokenize_text(txt, 'brikk_multilang_english_v1'), ' ')),
+       ' ');
+   ```
+
+   The alias is FE metadata: changing its body is a REINDEX event (rebuild every
+   pre-tokenized column). Caveat on the min-2 variant: it drops single CJK ideographs.
+
+2. **Versioned jar presets** (below) — cluster-portable, frozen by the release tag, and
+   usable anywhere the jar is (CLI, other clusters) without per-cluster DDL. The alias
+   above is best defined *over* a preset name, layering both pins.
 
 ##### `brikk_multilang_english_v1`
 
