@@ -3,7 +3,7 @@ name: release
 # Tag -> GitHub release with the deployable Doris UDF jar attached.
 # The asset URL is stable per tag and anonymously downloadable — exactly what
 # CREATE FUNCTION's "file" property points at:
-#   https://github.com/<org>/brikk-doris-udfs/releases/download/<tag>/udf-lucene-all.jar
+#   https://github.com/<org>/brikk-doris-udfs/releases/download/<tag>/brikk-doris-udfs-lucene-all.jar
 # Version by TAG on every change: Doris BEs cache the jar per function signature,
 # so a new jar must live at a NEW tag URL (then DROP/CREATE FUNCTION to reload).
 on:
@@ -35,7 +35,7 @@ jobs:
         run: ./tools/build-udf-jar.sh
 
       - name: Checksum
-        run: cd build && sha256sum udf-lucene-all.jar > udf-lucene-all.jar.sha256
+        run: cd build && sha256sum brikk-doris-udfs-lucene-all.jar > brikk-doris-udfs-lucene-all.jar.sha256
 
       - name: Create release + attach artifacts
         env:
@@ -44,5 +44,5 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
             --generate-notes \
-            build/udf-lucene-all.jar \
-            build/udf-lucene-all.jar.sha256
+            build/brikk-doris-udfs-lucene-all.jar \
+            build/brikk-doris-udfs-lucene-all.jar.sha256

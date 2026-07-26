@@ -173,6 +173,27 @@ class TokenizeTest {
     }
 
     @Test
+    fun brikkMultilangEnglishV1Preset() {
+        // The one-token pinned config (Doris has no server-side config storage; the
+        // preset name IS the contract, frozen per jar release).
+        assertEquals(
+            listOf("muller", "fussgang", "run", "quickli", "zurich", "cafe"),
+            tokens("brikk_multilang_english_v1", "The Müller's Fußgänger are running quickly to Zürich's café"),
+        )
+        // The preset and its explicit spelled-out chain are the SAME analyzer instance.
+        val explicit = """{"char_filter": [{"type": "icu_normalizer", "name": "nfkc_cf"}],
+                           "tokenizer": "icu_tokenizer",
+                           "filter": [{"type": "stemmer", "language": "possessive_english"},
+                                      "asciifolding",
+                                      {"type": "stop", "stopwords": ["_english_"]},
+                                      {"type": "stemmer", "language": "english"}]}"""
+        assertSame(
+            AnalyzerRegistry.analyzer("brikk_multilang_english_v1"),
+            AnalyzerRegistry.analyzer(explicit),
+        )
+    }
+
+    @Test
     fun stemmerLanguageTable() {
         // snowball porter2 vs algorithmic porter vs kstem are all reachable by name.
         val porter2 = """{"tokenizer": "standard", "filter": ["lowercase", {"type": "stemmer", "language": "porter2"}]}"""

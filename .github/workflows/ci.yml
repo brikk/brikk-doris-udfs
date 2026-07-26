@@ -30,6 +30,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: udf-lucene-all
-          path: build/udf-lucene-all.jar
+          name: brikk-doris-udfs-lucene-all
+          path: build/brikk-doris-udfs-lucene-all.jar
           retention-days: 14

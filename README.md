@@ -40,6 +40,7 @@ SELECT tokenize_text('Grüße aus Zürich: Straße', '{
 "english"                                   // bare built-in analyzer name
 {"analyzer": "german"}                      // same, JSON form
 {"analyzer": {"type": "english", "stem_exclusion": ["organization"]}}
+"brikk_multilang_english_v1"              // versioned brikk preset (see below)
 {                                            // custom chain
   "char_filter": [{"type": "icu_normalizer", "name": "nfkc_cf"}],
   "tokenizer": "icu_tokenizer",
@@ -75,6 +76,27 @@ Named analyzers expand to their full chains at parse time, so `"english"`, its J
 spellings, and its hand-written equivalent chain share **one** analyzer instance. Keyed by
 the data class (structural equality), never by a raw hash. Per-row cost is tokenization only.
 
+#### Versioned brikk presets — the pinned-config answer
+
+Doris has **no server-side config storage** (no variables, no function aliases, no saved
+literals) — the config argument must be passed on every call. So the jar bakes opinionated
+chains in as **versioned preset names**: the name is the pinned contract, its meaning is
+frozen by the release tag, and the string you repeat everywhere is one token.
+
+| preset | chain |
+|---|---|
+| `brikk_multilang_english_v1` | `icu_normalizer(nfkc_cf)` char filter → `icu_tokenizer` → possessive strip → `asciifolding` → `stop(_english_)` → Porter stemming |
+
+```sql
+SELECT tokenize_text("The Müller's Fußgänger are running quickly to Zürich's café",
+                     'brikk_multilang_english_v1');
+-- 'muller fussgang run quickli zurich cafe'
+```
+
+Presets are immutable once published: a changed chain is a NEW name (`_v2`), because
+changing the analysis behind an existing name would silently break every index built
+with it (see the symmetry contract).
+
 #### ⚠ The symmetry contract
 
 **Index-time and query-time analysis must be byte-identical.** The config string is part
@@ -98,7 +120,7 @@ CREATE TABLE docs (
 
 ```bash
 ./kotlin test               # 19 tests
-./tools/build-udf-jar.sh    # -> build/udf-lucene-all.jar (flat shaded jar, ~22 MB)
+./tools/build-udf-jar.sh    # -> build/brikk-doris-udfs-lucene-all.jar (flat shaded jar, ~22 MB)
 ```
 
 The toolchain's `package` emits a Spring-Boot-style nested jar which Doris's plain
@@ -106,13 +128,13 @@ The toolchain's `package` emits a Spring-Boot-style nested jar which Doris's pla
 dropping `module-info.class`) and the build script smokes the result exactly the way
 Doris loads it (`java -cp …`, no launcher).
 
-Publish `udf-lucene-all.jar` as a GitHub release asset (public, anonymous download, BEs
+Publish `brikk-doris-udfs-lucene-all.jar` as a GitHub release asset (public, anonymous download, BEs
 fetch it once and cache), then:
 
 ```sql
 CREATE FUNCTION tokenize_text(STRING, STRING) RETURNS STRING PROPERTIES (
   "type"   = "JAVA_UDF",
-  "file"   = "https://github.com/<org>/brikk-doris-udfs/releases/download/<tag>/udf-lucene-all.jar",
+  "file"   = "https://github.com/<org>/brikk-doris-udfs/releases/download/<tag>/brikk-doris-udfs-lucene-all.jar",
   "symbol" = "dev.brikk.doris.udf.lucene.TokenizeUdf",
   "always_nullable" = "true"
 );
@@ -125,7 +147,7 @@ Requires `enable_java_udf = true` on the BEs.
 CLI smoke tool (same code path as the UDF):
 
 ```bash
-java -cp build/udf-lucene-all.jar dev.brikk.doris.udf.lucene.MainKt english "John's running"
+java -cp build/brikk-doris-udfs-lucene-all.jar dev.brikk.doris.udf.lucene.MainKt english "John's running"
 java -jar build/tasks/_udf-lucene_executableJarJvm/udf-lucene-jvm-executable.jar german "Häuser Bücher"
 ```
 

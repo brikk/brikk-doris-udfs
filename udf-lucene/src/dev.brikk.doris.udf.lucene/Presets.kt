@@ -156,6 +156,28 @@ object Presets {
         "hungarian" -> language(spec, "_hungarian_", "hungarian")
         "turkish" -> language(spec, "_turkish_", "turkish")
 
+        // ── brikk presets (VERSIONED: the name is an index contract — never change a
+        // published preset's chain; add _v2 instead). Doris has no server-side place to
+        // pin a config (no variables/aliases), so a preset name IS the pinned config:
+        // one short token to pass everywhere, its meaning frozen by the jar release. ──
+        "brikk_multilang_english_v1" -> {
+            // Multilingual UAX#29 splitting + NFKC casefold (pre-tokenization) + English
+            // possessive stripping + ASCII folding + _english_ stop words + Porter stemming.
+            // "The Müller's Fußgänger are running quickly to Zürich's café"
+            //   -> muller fussgang run quickli zurich cafe
+            spec.requireOnly(emptySet())
+            AnalysisConfig(
+                charFilters = listOf(spec("icu_normalizer", "name" to str("nfkc_cf"))),
+                tokenizer = spec("icu_tokenizer"),
+                tokenFilters = listOf(
+                    spec("stemmer", "language" to str("possessive_english")),
+                    spec("asciifolding"),
+                    spec("stop", "stopwords" to strs(listOf("_english_"))),
+                    spec("stemmer", "language" to str("english")),
+                ),
+            )
+        }
+
         else -> throw AnalysisConfigException(
             "unsupported analyzer '${spec.type}'. Supported: ${SUPPORTED.sorted()}",
         )
@@ -165,6 +187,7 @@ object Presets {
         "standard", "simple", "whitespace", "keyword", "stop", "pattern", "fingerprint",
         "english", "german", "french", "italian", "spanish", "portuguese", "russian",
         "swedish", "danish", "norwegian", "finnish", "hungarian", "turkish",
+        "brikk_multilang_english_v1",
     )
 
     // OpenSearch's french/italian analyzers use these elision article sets
