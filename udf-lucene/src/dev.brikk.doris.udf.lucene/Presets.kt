@@ -202,33 +202,22 @@ object Presets {
         }
 
         "brikk_multilang_english_fingerprint_v2" -> {
-            // fingerprint_v1 + slash-date preservation. Dates written with `/` are rewritten
-            // to `.` BEFORE tokenization (UAX#29 splits numbers at `/`, `-`, `:` but joins
-            // them across `.`, `,`, `_`), so they survive as ONE token instead of being
-            // shredded into length-filtered fragments. Shapes kept (3-part rules must run
-            // before the 2-part rule, or d/d/d gets half-eaten):
-            //   d{1,2}/d{1,2}/(d{4}|d{2})  6/7/1994  06/07/1994  6/7/94  6/19/26
-            //   d{4}/d{1,2}/d{1,2}         1994/06/07
-            //   d{1,2}/(d{4}|d{2})         10/1994  6/95  6/06
-            // Deliberately NOT kept: d/d (6/6, 1/2 fractions) — shredded then dropped.
+            // fingerprint_v1 + slash-number preservation. Any digit/digit `/` boundary is
+            // rewritten to `_` BEFORE tokenization (UAX#29 splits numbers at `/`, `-`, `:`
+            // but joins them across `.`, `,`, `_`), so dates AND fractions/ratios survive
+            // as ONE token instead of being shredded into length-filtered fragments:
+            //   6/19/26 -> 6_19_26   1994/06/07 -> 1994_06_07   6/95 -> 6_95
+            //   3/4 -> 3_4           1/2 -> 1_2
+            // `_` (not `.`) so the result never reads as a decimal number. Letters block
+            // the rewrite (s01/e04 splits normally).
             spec.requireOnly(emptySet())
             AnalysisConfig(
                 charFilters = listOf(
                     spec("icu_normalizer", "name" to str("nfkc_cf")),
                     spec(
                         "pattern_replace",
-                        "pattern" to str("\\b(\\d{1,2})/(\\d{1,2})/(\\d{4}|\\d{2})\\b"),
-                        "replacement" to str("$1.$2.$3"),
-                    ),
-                    spec(
-                        "pattern_replace",
-                        "pattern" to str("\\b(\\d{4})/(\\d{1,2})/(\\d{1,2})\\b"),
-                        "replacement" to str("$1.$2.$3"),
-                    ),
-                    spec(
-                        "pattern_replace",
-                        "pattern" to str("\\b(\\d{1,2})/(\\d{4}|\\d{2})\\b"),
-                        "replacement" to str("$1.$2"),
+                        "pattern" to str("(?<=\\d)/(?=\\d)"),
+                        "replacement" to str("_"),
                     ),
                 ),
                 tokenizer = spec("icu_tokenizer"),
