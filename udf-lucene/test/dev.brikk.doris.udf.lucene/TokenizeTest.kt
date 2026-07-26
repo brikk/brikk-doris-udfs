@@ -188,6 +188,30 @@ class TokenizeTest {
     }
 
     @Test
+    fun brikkMultilangEnglishFingerprintV1Preset() {
+        val p = "brikk_multilang_english_fingerprint_v1"
+        // Equivalent queries collapse to the SAME canonical fingerprint (sorted, deduped,
+        // one token) — the preset's purpose is likely-same-query detection.
+        assertEquals(listOf("cafe run zurich"), tokens(p, "running to Zürich's café"))
+        assertEquals(listOf("cafe run zurich"), tokens(p, "café runs Zurich"))
+        // 1-char tokens dropped, letters AND digits ('5', the 'x' from x-ray); dedupe+sort.
+        assertEquals(
+            listOf("at cafe cat fred o'brien rai"),
+            tokens(p, "The 5 cats ate O'Brien's x-ray of Fred's café"),
+        )
+        // Preset == its explicit spelled-out chain (same cache key, same instance).
+        val explicit = """{"char_filter": [{"type": "icu_normalizer", "name": "nfkc_cf"}],
+                           "tokenizer": "icu_tokenizer",
+                           "filter": [{"type": "stemmer", "language": "possessive_english"},
+                                      "asciifolding",
+                                      {"type": "stop", "stopwords": ["_english_"]},
+                                      {"type": "stemmer", "language": "english"},
+                                      {"type": "length", "min": 2},
+                                      {"type": "fingerprint"}]}"""
+        assertSame(AnalyzerRegistry.analyzer(p), AnalyzerRegistry.analyzer(explicit))
+    }
+
+    @Test
     fun brikkMultilangEnglishV1Preset() {
         // The one-token pinned config (Doris has no server-side config storage; the
         // preset name IS the contract, frozen per jar release).

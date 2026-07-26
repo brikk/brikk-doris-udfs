@@ -178,6 +178,29 @@ object Presets {
             )
         }
 
+        "brikk_multilang_english_fingerprint_v1" -> {
+            // Query-normalization fingerprint: the brikk_multilang_english_v1 chain, then
+            // length(min 2) (drops 1-char tokens — letters AND digits; placed after
+            // stemming so tokens that stem down to one char are caught too), then
+            // fingerprint (sort + dedupe + join into ONE canonical token). Two queries
+            // that "mean the same" collapse to the same string:
+            //   "running to Zürich's café" -> cafe run zurich
+            //   "café runs Zurich"         -> cafe run zurich
+            spec.requireOnly(emptySet())
+            AnalysisConfig(
+                charFilters = listOf(spec("icu_normalizer", "name" to str("nfkc_cf"))),
+                tokenizer = spec("icu_tokenizer"),
+                tokenFilters = listOf(
+                    spec("stemmer", "language" to str("possessive_english")),
+                    spec("asciifolding"),
+                    spec("stop", "stopwords" to strs(listOf("_english_"))),
+                    spec("stemmer", "language" to str("english")),
+                    spec("length", "min" to ParamValue.Num(2)),
+                    spec("fingerprint"),
+                ),
+            )
+        }
+
         else -> throw AnalysisConfigException(
             "unsupported analyzer '${spec.type}'. Supported: ${SUPPORTED.sorted()}",
         )
@@ -187,7 +210,7 @@ object Presets {
         "standard", "simple", "whitespace", "keyword", "stop", "pattern", "fingerprint",
         "english", "german", "french", "italian", "spanish", "portuguese", "russian",
         "swedish", "danish", "norwegian", "finnish", "hungarian", "turkish",
-        "brikk_multilang_english_v1",
+        "brikk_multilang_english_v1", "brikk_multilang_english_fingerprint_v1",
     )
 
     // OpenSearch's french/italian analyzers use these elision article sets
