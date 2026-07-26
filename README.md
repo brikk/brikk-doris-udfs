@@ -7,7 +7,7 @@ is JDK 17 — verified 17.0.2 on `apache/doris:be-4.1.0`).
 
 ## Modules
 
-### `udf-lucene` — OpenSearch-compatible text analysis (`tokenize_text`)
+### `udf-lucene` — OpenSearch-compatible text analysis (`tokenize_with_lucene`)
 
 Runs text through a **Lucene analysis chain configured with OpenSearch's analyzer
 vocabulary** — the OpenSearch docs are the config reference — and returns the tokens
@@ -24,10 +24,10 @@ real **stemming**, **stop words with custom/predefined lists**, **possessive str
   analyzer than configured and corrupt index/query symmetry.
 
 ```
-SELECT tokenize_text('John''s running quickly the boxes', 'english');
+SELECT tokenize_with_lucene('John''s running quickly the boxes', 'english');
 -- 'john run quickli box'      (possessive stripped, stop words removed, Porter-stemmed)
 
-SELECT tokenize_text('Grüße aus Zürich: Straße', '{
+SELECT tokenize_with_lucene('Grüße aus Zürich: Straße', '{
   "tokenizer": "icu_tokenizer",
   "filter": [{"type": "icu_normalizer", "name": "nfkc_cf"}, "asciifolding"]
 }');
@@ -81,23 +81,30 @@ the data class (structural equality), never by a raw hash. Per-row cost is token
 The config argument must be byte-identical at ingest *and* at query. Two complementary
 pinning mechanisms:
 
-1. **Doris `CREATE GLOBAL ALIAS FUNCTION`** — bake the config (and any post-filtering)
-   into a server-side name, so callers never repeat it:
+1. **Doris `CREATE ALIAS FUNCTION`** — bake your config into a server-side name, so
+   callers never repeat the JSON. Example with a fully custom chain:
 
    ```sql
-   CREATE GLOBAL ALIAS FUNCTION tokenize_en(STRING) WITH PARAMETER(txt) AS
-     tokenize_text(txt, 'brikk_multilang_english_v1');
+   CREATE ALIAS FUNCTION tokenize_multilang(STRING) WITH PARAMETER(text) AS
+     tokenize_with_lucene(text,
+       '{"char_filter":[{"type":"icu_normalizer","name":"nfkc_cf"}],"tokenizer":"icu_tokenizer","filter":[{"type":"stemmer","language":"possessive_english"},"asciifolding",{"type":"stop","stopwords":"_english_"},{"type":"stemmer","language":"english"}]}'
+     );
 
-   -- variant that also drops 1-char tokens (keeps numerics of any length):
-   CREATE GLOBAL ALIAS FUNCTION tokenize_en_min2(STRING) WITH PARAMETER(txt) AS
-     array_join(
-       array_filter(x -> char_length(x) > 1 OR x REGEXP '^[0-9]+$',
-                    split_by_string(tokenize_text(txt, 'brikk_multilang_english_v1'), ' ')),
-       ' ');
+   SELECT tokenize_multilang("The Müller's Fußgänger are running quickly to Zürich's café");
+   -- 'muller fussgang run quickli zurich cafe'
    ```
 
-   The alias is FE metadata: changing its body is a REINDEX event (rebuild every
-   pre-tokenized column). Caveat on the min-2 variant: it drops single CJK ideographs.
+   The alias body can be any expression — wrap a jar preset instead of inline JSON
+   (`tokenize_with_lucene(text, 'brikk_multilang_english_v1')`), or add post-filtering
+   (e.g. `array_filter` to drop 1-char tokens). Add `GLOBAL` to use it across databases.
+
+   > ⚠ **Doris 4.1.0's alias functions are broken** — use **4.1.1 or newer** (fixed by
+   > [#63254](https://github.com/apache/doris/pull/63254), backported to 4.1 in
+   > [#63349](https://github.com/apache/doris/pull/63349); we hit the bug, reported it,
+   > and helped land the fix).
+
+   The alias is FE metadata: changing its body is a REINDEX event — rebuild every
+   pre-tokenized column, or matching silently breaks.
 
 2. **Versioned jar presets** (below) — cluster-portable, frozen by the release tag, and
    usable anywhere the jar is (CLI, other clusters) without per-cluster DDL. The alias
@@ -121,12 +128,12 @@ more than preserving distinctions.
 | filter 4 | `stemmer: english` | Porter stemming (`running→run`, `boxes→box`, `quickly→quickli`) |
 
 ```sql
-SELECT tokenize_text("The Müller's Fußgänger are running quickly to Zürich's café",
+SELECT tokenize_with_lucene("The Müller's Fußgänger are running quickly to Zürich's café",
                      'brikk_multilang_english_v1');
 -- 'muller fussgang run quickli zurich cafe'
 --  ß→ss (casefold) · 's stripped · ü/é→ASCII · the/are/to dropped · Porter-stemmed
 
-SELECT tokenize_text("John's boxes ﬁnally arrived at 北京大学 today", 'brikk_multilang_english_v1');
+SELECT tokenize_with_lucene("John's boxes ﬁnally arrived at 北京大学 today", 'brikk_multilang_english_v1');
 -- 'john box final arriv 北京 大学 todai'
 --  ﬁ ligature normalized · CJK dictionary-segmented · stemmed
 ```
@@ -167,8 +174,8 @@ CREATE TABLE docs (
   INDEX idx_tok (body_tokens) USING INVERTED PROPERTIES("analyzer"="passthru", "support_phrase"="true")
 ) ...;
 
--- ingest:  INSERT ... SELECT ..., tokenize_text(body, '<CONFIG>') ...
--- query:   WHERE body_tokens MATCH_ALL tokenize_text('search terms', '<CONFIG>')
+-- ingest:  INSERT ... SELECT ..., tokenize_with_lucene(body, '<CONFIG>') ...
+-- query:   WHERE body_tokens MATCH_ALL tokenize_with_lucene('search terms', '<CONFIG>')
 ```
 
 #### Build & deploy
@@ -187,7 +194,7 @@ Publish `brikk-doris-udfs-lucene-all.jar` as a GitHub release asset (public, ano
 fetch it once and cache), then:
 
 ```sql
-CREATE FUNCTION tokenize_text(STRING, STRING) RETURNS STRING PROPERTIES (
+CREATE FUNCTION tokenize_with_lucene(STRING, STRING) RETURNS STRING PROPERTIES (
   "type"   = "JAVA_UDF",
   "file"   = "https://github.com/<org>/brikk-doris-udfs/releases/download/<tag>/brikk-doris-udfs-lucene-all.jar",
   "symbol" = "dev.brikk.doris.udf.lucene.TokenizeUdf",

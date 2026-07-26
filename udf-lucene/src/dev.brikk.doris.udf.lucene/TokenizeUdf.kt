@@ -1,7 +1,7 @@
 package dev.brikk.doris.udf.lucene
 
 /**
- * Doris Java UDF: `tokenize_text(text, config) -> STRING` — runs [text] through an
+ * Doris Java UDF: `tokenize_with_lucene(text, config) -> STRING` — runs [text] through an
  * OpenSearch-configured Lucene analysis chain and returns the tokens **space-joined, in
  * order** (positions are implicit in the order, so a whitespace-tokenized inverted index
  * over the result supports MATCH_ANY/ALL and phrase queries).
@@ -9,7 +9,7 @@ package dev.brikk.doris.udf.lucene
  * Doris UDF contract (BaseExecutor/UdfExecutor): public class, public no-arg constructor,
  * public method named `evaluate`. Register with:
  * ```sql
- * CREATE FUNCTION tokenize_text(STRING, STRING) RETURNS STRING PROPERTIES (
+ * CREATE FUNCTION tokenize_with_lucene(STRING, STRING) RETURNS STRING PROPERTIES (
  *     "type"   = "JAVA_UDF",
  *     "file"   = "https://github.com/<org>/<repo>/releases/download/<tag>/udf-lucene-all.jar",
  *     "symbol" = "dev.brikk.doris.udf.lucene.TokenizeUdf",
