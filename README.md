@@ -33,7 +33,7 @@ Register the function to use it: (note the link is from github releases)
 ```sql
 CREATE GLOBAL FUNCTION tokenize_with_lucene(STRING, STRING) RETURNS STRING PROPERTIES (
   "type"   = "JAVA_UDF",
-  "file"   = "https://github.com/brikk/brikk-doris-udfs/releases/download/v0.3.0/brikk-doris-udfs-lucene-all.jar",
+  "file"   = "https://github.com/brikk/brikk-doris-udfs/releases/download/v0.4.0/brikk-doris-udfs-lucene-all.jar",
   "symbol" = "dev.brikk.doris.udf.lucene.TokenizeUdf",
   "always_nullable" = "true"
 );
@@ -44,7 +44,7 @@ or the array version:
 ```sql
 CREATE GLOBAL FUNCTION tokenize_with_lucene_to_array(STRING, STRING) RETURNS ARRAY<STRING> PROPERTIES (
   "type"   = "JAVA_UDF",
-  "file"   = "https://github.com/brikk/brikk-doris-udfs/releases/download/v0.3.0/brikk-doris-udfs-lucene-all.jar",
+  "file"   = "https://github.com/brikk/brikk-doris-udfs/releases/download/v0.4.0/brikk-doris-udfs-lucene-all.jar",
   "symbol" = "dev.brikk.doris.udf.lucene.TokenizeUdfToArray",
   "always_nullable" = "true"
 );
