@@ -168,6 +168,21 @@ class TokenizeTest {
     }
 
     @Test
+    fun arrayUdfReturnsTokenListAndPropagatesNulls() {
+        val udf = TokenizeUdfToArray()
+        assertNull(udf.evaluate(null, "english"))
+        assertNull(udf.evaluate("text", null))
+        val tokens = udf.evaluate("John's running quickly the boxes", "english")
+        // Doris marshals ARRAY<STRING> via java.util.ArrayList — the concrete type matters.
+        assertEquals(ArrayList(listOf("john", "run", "quickli", "box")), tokens)
+        assertTrue(tokens is ArrayList<String>)
+        assertEquals(ArrayList(listOf("muller", "fussgang", "run", "quickli", "zurich", "cafe")),
+            udf.evaluate("The Müller's Fußgänger are running quickly to Zürich's café", "brikk_multilang_english_v1"))
+        // Empty text -> empty array (not null): distinguishes "no tokens" from "no input".
+        assertEquals(ArrayList<String>(), udf.evaluate("", "english"))
+    }
+
+    @Test
     fun bareAnalyzerNameShorthand() {
         assertEquals(listOf("Hello", "World"), tokens("whitespace", "Hello World"))
     }
