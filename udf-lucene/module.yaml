@@ -1,0 +1,28 @@
+# Doris Java UDF: OpenSearch-compatible text analysis (tokenize) backed by Apache Lucene.
+#
+# jvm/app (not lib): the executable jar the toolchain builds IS the deployment artifact —
+# a self-contained fat jar (Lucene + ICU + kotlin-stdlib bundled) that Doris BEs load into
+# a per-function child-first URLClassLoader via
+#   CREATE FUNCTION ... PROPERTIES("type"="JAVA_UDF", "file"="https://.../udf-lucene-all.jar",
+#                                  "symbol"="dev.brikk.doris.udf.lucene.TokenizeUdf")
+# The main() is a CLI for local smoke-testing the same analysis chain.
+product: jvm/app
+
+description: OpenSearch-compatible Lucene analysis chain as a Doris Java UDF (tokenize).
+
+dependencies:
+  # Lucene 9.x line, NOT 10.x: Lucene 10 requires Java 21, while the Doris BE's
+  # java-udf runtime is JDK 17 (verified on apache/doris:be-4.1.0 -> 17.0.2).
+  # 9.12.3 is the newest 9.x (validated on Maven Central 2026-07). The analysis
+  # factories/behavior match what OpenSearch 3.x documents; parity note in README.
+  - org.apache.lucene:lucene-analysis-common:9.12.3
+  - org.apache.lucene:lucene-analysis-icu:9.12.3
+
+settings:
+  jvm:
+    # Doris BE java-udf runtime is JDK 17 (be-4.1.0 ships 17.0.2); class files must be <= 61.
+    jdk:
+      version: 17
+    mainClass: dev.brikk.doris.udf.lucene.MainKt
+  kotlin:
+    serialization: json
