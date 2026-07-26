@@ -196,7 +196,7 @@ object Presets {
                     spec("stop", "stopwords" to strs(listOf("_english_"))),
                     spec("stemmer", "language" to str("english")),
                     spec("length", "min" to ParamValue.Num(2)),
-                    spec("fingerprint"),
+                    spec("fingerprint", "max_output_size" to ParamValue.Num(1000)),
                 ),
             )
         }

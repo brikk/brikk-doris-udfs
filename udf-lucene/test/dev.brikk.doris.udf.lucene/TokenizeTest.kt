@@ -207,7 +207,7 @@ class TokenizeTest {
                                       {"type": "stop", "stopwords": ["_english_"]},
                                       {"type": "stemmer", "language": "english"},
                                       {"type": "length", "min": 2},
-                                      {"type": "fingerprint"}]}"""
+                                      {"type": "fingerprint", "max_output_size": 1000}]}"""
         assertSame(AnalyzerRegistry.analyzer(p), AnalyzerRegistry.analyzer(explicit))
     }
 
