@@ -212,6 +212,26 @@ class TokenizeTest {
     }
 
     @Test
+    fun brikkMultilangEnglishFingerprintV2PreservesSlashDates() {
+        val p = "brikk_multilang_english_fingerprint_v2"
+        // All spec'd slash-date shapes survive as one dotted token.
+        assertEquals(listOf("6.19.26 alex jone show"), tokens(p, "alex jones show 6/19/26"))
+        assertEquals(listOf("6.7.1994 date"), tokens(p, "date 6/7/1994"))
+        assertEquals(listOf("06.07.1994 date"), tokens(p, "date 06/07/1994"))
+        assertEquals(listOf("1994.06.07 date"), tokens(p, "date 1994/06/07"))
+        assertEquals(listOf("6.95 date"), tokens(p, "date 6/95"))
+        assertEquals(listOf("10.1994 date"), tokens(p, "date 10/1994"))
+        assertEquals(listOf("6.06 date"), tokens(p, "date 6/06"))
+        // Deliberately excluded: single/single (6/6, fractions) shred and drop.
+        assertEquals(listOf("date"), tokens(p, "date 6/6"))
+        assertEquals(listOf("cup date"), tokens(p, "date 1/2 cup"))
+        // Letters block the rewrite; adjacent full date still kept.
+        assertEquals(listOf("12.25.2026 e04 recap s01"), tokens(p, "s01/e04 recap 12/25/2026"))
+        // Non-date behavior identical to fingerprint_v1.
+        assertEquals(listOf("cafe run zurich"), tokens(p, "running to Zürich's café"))
+    }
+
+    @Test
     fun brikkMultilangEnglishV1Preset() {
         // The one-token pinned config (Doris has no server-side config storage; the
         // preset name IS the contract, frozen per jar release).

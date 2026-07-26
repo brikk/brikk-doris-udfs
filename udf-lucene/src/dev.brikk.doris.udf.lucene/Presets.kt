@@ -201,6 +201,48 @@ object Presets {
             )
         }
 
+        "brikk_multilang_english_fingerprint_v2" -> {
+            // fingerprint_v1 + slash-date preservation. Dates written with `/` are rewritten
+            // to `.` BEFORE tokenization (UAX#29 splits numbers at `/`, `-`, `:` but joins
+            // them across `.`, `,`, `_`), so they survive as ONE token instead of being
+            // shredded into length-filtered fragments. Shapes kept (3-part rules must run
+            // before the 2-part rule, or d/d/d gets half-eaten):
+            //   d{1,2}/d{1,2}/(d{4}|d{2})  6/7/1994  06/07/1994  6/7/94  6/19/26
+            //   d{4}/d{1,2}/d{1,2}         1994/06/07
+            //   d{1,2}/(d{4}|d{2})         10/1994  6/95  6/06
+            // Deliberately NOT kept: d/d (6/6, 1/2 fractions) — shredded then dropped.
+            spec.requireOnly(emptySet())
+            AnalysisConfig(
+                charFilters = listOf(
+                    spec("icu_normalizer", "name" to str("nfkc_cf")),
+                    spec(
+                        "pattern_replace",
+                        "pattern" to str("\\b(\\d{1,2})/(\\d{1,2})/(\\d{4}|\\d{2})\\b"),
+                        "replacement" to str("$1.$2.$3"),
+                    ),
+                    spec(
+                        "pattern_replace",
+                        "pattern" to str("\\b(\\d{4})/(\\d{1,2})/(\\d{1,2})\\b"),
+                        "replacement" to str("$1.$2.$3"),
+                    ),
+                    spec(
+                        "pattern_replace",
+                        "pattern" to str("\\b(\\d{1,2})/(\\d{4}|\\d{2})\\b"),
+                        "replacement" to str("$1.$2"),
+                    ),
+                ),
+                tokenizer = spec("icu_tokenizer"),
+                tokenFilters = listOf(
+                    spec("stemmer", "language" to str("possessive_english")),
+                    spec("asciifolding"),
+                    spec("stop", "stopwords" to strs(listOf("_english_"))),
+                    spec("stemmer", "language" to str("english")),
+                    spec("length", "min" to ParamValue.Num(2)),
+                    spec("fingerprint", "max_output_size" to ParamValue.Num(1000)),
+                ),
+            )
+        }
+
         else -> throw AnalysisConfigException(
             "unsupported analyzer '${spec.type}'. Supported: ${SUPPORTED.sorted()}",
         )
@@ -211,6 +253,7 @@ object Presets {
         "english", "german", "french", "italian", "spanish", "portuguese", "russian",
         "swedish", "danish", "norwegian", "finnish", "hungarian", "turkish",
         "brikk_multilang_english_v1", "brikk_multilang_english_fingerprint_v1",
+        "brikk_multilang_english_fingerprint_v2",
     )
 
     // OpenSearch's french/italian analyzers use these elision article sets
