@@ -79,23 +79,59 @@ the data class (structural equality), never by a raw hash. Per-row cost is token
 #### Versioned brikk presets — the pinned-config answer
 
 Doris has **no server-side config storage** (no variables, no function aliases, no saved
-literals) — the config argument must be passed on every call. So the jar bakes opinionated
-chains in as **versioned preset names**: the name is the pinned contract, its meaning is
-frozen by the release tag, and the string you repeat everywhere is one token.
+literals) — the config argument must be passed on every call, at ingest *and* at query,
+byte-identically. So the jar bakes opinionated chains in as **versioned preset names**:
+the name is the pinned contract, its meaning is frozen by the release tag, and the string
+you repeat everywhere is one token instead of a JSON blob.
 
-| preset | chain |
-|---|---|
-| `brikk_multilang_english_v1` | `icu_normalizer(nfkc_cf)` char filter → `icu_tokenizer` → possessive strip → `asciifolding` → `stop(_english_)` → Porter stemming |
+##### `brikk_multilang_english_v1`
+
+"Search-normalize everything, rank in English": multilingual tokenization with aggressive
+Latin normalization plus English stop words, possessives, and stemming. Good default for
+mixed international content (names, places, product text) searched by English-speaking
+users, where accent-, case-, inflection-, and possessive-insensitive **recall** matters
+more than preserving distinctions.
+
+| stage | component | does |
+|---|---|---|
+| char filter | `icu_normalizer` (`nfkc_cf`) | Unicode NFKC compatibility normalization + full case-folding, **before** tokenization (`ß→ss`, `ﬁ→fi`, `²³→23`, full-width→ASCII, lowercase) |
+| tokenizer | `icu_tokenizer` | UAX#29 word segmentation across scripts (Latin, CJK dictionary segmentation, Thai, …) |
+| filter 1 | `stemmer: possessive_english` | strips trailing `'s` (`zürich's → zürich`) |
+| filter 2 | `asciifolding` | folds diacritics to ASCII (`ü→u ä→a é→e ñ→n ç→c`) |
+| filter 3 | `stop: _english_` | drops English stop words (`the, is, a, of, to, are, …`) |
+| filter 4 | `stemmer: english` | Porter stemming (`running→run`, `boxes→box`, `quickly→quickli`) |
 
 ```sql
 SELECT tokenize_text("The Müller's Fußgänger are running quickly to Zürich's café",
                      'brikk_multilang_english_v1');
 -- 'muller fussgang run quickli zurich cafe'
+--  ß→ss (casefold) · 's stripped · ü/é→ASCII · the/are/to dropped · Porter-stemmed
+
+SELECT tokenize_text("John's boxes ﬁnally arrived at 北京大学 today", 'brikk_multilang_english_v1');
+-- 'john box final arriv 北京 大学 todai'
+--  ﬁ ligature normalized · CJK dictionary-segmented · stemmed
 ```
 
-Presets are immutable once published: a changed chain is a NEW name (`_v2`), because
+Trade-offs to know: accented forms are **not distinguishable** after folding (`Müller` ≡
+`muller`); Porter produces non-word stems (`quickli`, `todai`) — fine for matching, not
+for display; stop-word removal makes pure-stop-word queries return nothing. If you need
+different trade-offs, pass the explicit JSON chain (this preset is exactly):
+
+```json
+{"char_filter": [{"type": "icu_normalizer", "name": "nfkc_cf"}],
+ "tokenizer": "icu_tokenizer",
+ "filter": [{"type": "stemmer", "language": "possessive_english"},
+            "asciifolding",
+            {"type": "stop", "stopwords": ["_english_"]},
+            {"type": "stemmer", "language": "english"}]}
+```
+
+(The preset and this JSON are the same cache key — the preset is pure shorthand.)
+
+**Presets are immutable once published**: a changed chain is a NEW name (`_v2`), because
 changing the analysis behind an existing name would silently break every index built
-with it (see the symmetry contract).
+with it (see the symmetry contract). PRs adding presets are welcome under the same rule —
+version-suffix the name, pin the output in a test.
 
 #### ⚠ The symmetry contract
 
